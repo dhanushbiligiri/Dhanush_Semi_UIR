@@ -79,17 +79,38 @@ def count_parameters(model):
 
 
 def compute_psnr_ssim(recoverd, clean):
-    assert recoverd.shape == clean.shape
-    recoverd = np.clip(recoverd.detach().cpu().numpy(), 0, 1)
-    clean = np.clip(clean.detach().cpu().numpy(), 0, 1)
-    recoverd = recoverd.transpose(0, 2, 3, 1)  
-    clean = clean.transpose(0, 2, 3, 1)
-    psnr = 0
-    ssim = 0
+    """
+    recoverd, clean: torch tensors of shape (N, C, H, W), values in [0, 1]
+    Returns:
+        avg_psnr, avg_ssim, N
+    """
+    # Clamp and move to CPU numpy
+    recoverd = torch.clamp(recoverd, 0.0, 1.0).detach().cpu().numpy()
+    clean = torch.clamp(clean, 0.0, 1.0).detach().cpu().numpy()
 
-    for i in range(recoverd.shape[0]):
-        psnr += peak_signal_noise_ratio(clean[i], recoverd[i], data_range=1)
-        ssim += structural_similarity(clean[i], recoverd[i], data_range=1, multichannel=True)
+    # N, C, H, W
+    N = clean.shape[0]
+    psnr = 0.0
+    ssim = 0.0
 
-    return psnr / recoverd.shape[0], ssim / recoverd.shape[0], recoverd.shape[0]
+    for i in range(N):
+        # (C, H, W) -> (H, W, C)
+        rec = np.transpose(recoverd[i], (1, 2, 0))
+        gt = np.transpose(clean[i], (1, 2, 0))
+
+        # PSNR
+        psnr += peak_signal_noise_ratio(gt, rec, data_range=1.0)
+
+        # SSIM – choose ONE of these depending on skimage version:
+
+        # If your skimage supports channel_axis (newer versions):
+        ssim += structural_similarity(gt, rec, data_range=1.0, channel_axis=-1)
+
+        # If that errors, comment the line above and uncomment this instead:
+        # ssim += structural_similarity(gt, rec, data_range=1.0, multichannel=True)
+
+    psnr /= N
+    ssim /= N
+
+    return psnr, ssim, N
 

@@ -1,53 +1,63 @@
 import os
 import torch
 import torch.nn as nn
+from torch.utils.data import DataLoader
 from torch.autograd import Variable
-import torch.utils.data as data
 import numpy as np
 from PIL import Image
-from adamp import AdamP
-# my import
+
 from model import AIMnet
 from dataset_all import TestData
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
-bz = 1
-model_root = 'pretrained/model.pth'
-input_root = 'data/test/benchmarkA/'
-save_path = 'result/benchmarkA'
-if not os.path.isdir(save_path):
-    os.makedirs(save_path)
-checkpoint = torch.load(model_root)
-Mydata_ = TestData(input_root)
-data_load = data.DataLoader(Mydata_, batch_size=bz)
+def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = AIMnet().cuda()
-model = nn.DataParallel(model, device_ids=[0, 1])
-optimizer = AdamP(model.parameters(), lr=2e-4, betas=(0.9, 0.999), weight_decay=1e-4)
-model.load_state_dict(checkpoint['state_dict'])
-optimizer.load_state_dict(checkpoint['optimizer_dict'])
-epoch = checkpoint['epoch']
-model.eval()
-print('START!')
-if 1:
-    print('Load model successfully!')
-    for data_idx, data_ in enumerate(data_load):
-        data_input, data_la = data_
+    # --- base dir = folder where test.py lives ---
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-        data_input = Variable(data_input).cuda()
-        data_la = Variable(data_la).cuda()
-        print(data_idx)
-        with torch.no_grad():
-            result, _ = model(data_input, data_la)
-            name = Mydata_.A_paths[data_idx].split('/')[5]
-            print(name)
-            temp_res = np.transpose(result[0, :].cpu().detach().numpy(), (1, 2, 0))
-            temp_res[temp_res > 1] = 1
-            temp_res[temp_res < 0] = 0
-            temp_res = (temp_res*255).astype(np.uint8)
-            temp_res = Image.fromarray(temp_res)
-            temp_res.save('%s/%s' % (save_path, name))
-            print('result saved!')
+    # use your trained checkpoint
+    model_root = os.path.join(BASE_DIR, "model", "ckpt", "model_e200.pth")
 
-print('finished!')
+    # TestData expects: dataroot/input and dataroot/LA
+    data_root = os.path.join(BASE_DIR, "data", "test")
+
+    save_path = os.path.join(BASE_DIR, "result", "test")
+    os.makedirs(save_path, exist_ok=True)
+
+    dataset = TestData(data_root)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+    print(f"Found {len(dataset)} test images.")
+
+    checkpoint = torch.load(model_root, map_location=device)
+
+    net = AIMnet().to(device)
+    net = nn.DataParallel(net)
+    net.load_state_dict(checkpoint["state_dict"])
+    net.eval()
+
+    print(f"Loaded checkpoint from {model_root} (epoch {checkpoint.get('epoch', 'unknown')})")
+    print("START INFERENCE!")
+
+    with torch.no_grad():
+        for idx, (data_input, data_la) in enumerate(dataloader):
+            data_input = Variable(data_input).to(device)
+            data_la = Variable(data_la).to(device)
+
+            result, _ = net(data_input, data_la)
+
+            img_path = dataset.A_paths[idx]
+            name = os.path.basename(img_path)
+            print(f"[{idx+1}/{len(dataset)}] {name}")
+
+            temp_res = result[0].cpu().numpy().transpose(1, 2, 0)
+            temp_res = np.clip(temp_res, 0, 1)
+            temp_res = (temp_res * 255).astype(np.uint8)
+            Image.fromarray(temp_res).save(os.path.join(save_path, name))
+
+    print("Finished! Results saved to:", save_path)
+
+
+if __name__ == "__main__":
+    main()

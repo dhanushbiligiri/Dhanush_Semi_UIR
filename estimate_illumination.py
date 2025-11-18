@@ -1,11 +1,9 @@
-import cv2
 import os
+import cv2
 import numpy as np
-from PIL import Image
 from glob import glob
 from os.path import join
-
-# estimate the illumination map
+from PIL import Image
 
 def luminance_estimation(img):
     sigma_list = [15, 60, 90]
@@ -20,15 +18,22 @@ def luminance_estimation(img):
     L = np.uint8(L * 255)
     return L
 
+def process_dir(input_dir, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    input_lists = glob(join(input_dir, "*.*"))
+    print(f"Processing {len(input_lists)} images from {input_dir}")
+    for p in input_lists:
+        img = Image.open(p).convert("RGB")
+        fname = os.path.basename(p)
+        L = luminance_estimation(img)
+        out_img = Image.fromarray(L)
+        out_img.save(os.path.join(output_dir, fname))
+    print(f"Done: {output_dir}")
 
-input_dir = "data/test/unlabeled/input"
-input_lists = glob(join(input_dir, "*.*"))
-result_dir = "data/test/unlabeled/LA/"
-for gen_path in zip(input_lists):
-    img = Image.open(gen_path[0])
-    img_name = gen_path[0].split('/')[4]
-    L = luminance_estimation(img)
-    ndar = Image.fromarray(L)
-    ndar.save(os.path.join(result_path, img_name))
-
-print('finished!')
+if __name__ == "__main__":
+    # labeled train
+    process_dir("data/labeled1/input", "data/labeled1/LA")
+    # val
+    process_dir("data/val/input", "data/val/LA")
+    # unlabeled
+    process_dir("data/unlabeled/input", "data/unlabeled/LA")

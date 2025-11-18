@@ -71,19 +71,32 @@ class Trainer:
 
     def get_reliable(self, teacher_predict, student_predict, positive_list, p_name, score_r):
         N = teacher_predict.shape[0]
-        score_t = self.iqa_metric(teacher_predict).detach().cpu().numpy()
-        score_s = self.iqa_metric(student_predict).detach().cpu().numpy()
+
+        # Convert IQA outputs to 1D numpy arrays
+        score_t = np.array(self.iqa_metric(teacher_predict).detach().cpu().numpy()).reshape(-1)
+        score_s = np.array(self.iqa_metric(student_predict).detach().cpu().numpy()).reshape(-1)
+        score_r = np.array(score_r).reshape(-1)
+
+        # If they are scalar (len==1), broadcast to batch size N
+        if score_t.size == 1:
+            score_t = np.full((N,), float(score_t[0]))
+        if score_s.size == 1:
+            score_s = np.full((N,), float(score_s[0]))
+        if score_r.size == 1:
+            score_r = np.full((N,), float(score_r[0]))
+
         positive_sample = positive_list.clone()
-        for idx in range(0, N):
+        for idx in range(N):
             if score_t[idx] > score_s[idx]:
                 if score_t[idx] > score_r[idx]:
                     positive_sample[idx] = teacher_predict[idx]
                     # update the reliable bank
                     temp_c = np.transpose(teacher_predict[idx].detach().cpu().numpy(), (1, 2, 0))
                     temp_c = np.clip(temp_c, 0, 1)
-                    arr_c = (temp_c*255).astype(np.uint8)
+                    arr_c = (temp_c * 255).astype(np.uint8)
                     arr_c = Image.fromarray(arr_c)
                     arr_c.save('%s' % p_name[idx])
+
         del N, score_r, score_s, score_t, teacher_predict, student_predict, positive_list
         return positive_sample
 
@@ -104,8 +117,8 @@ class Trainer:
             print('[%d] main_loss: %.6f, train psnr: %.6f, val psnr: %.6f, lr: %.8f' % (
                 epoch, loss_val, train_psnr, val_psnr, self.lr_scheduler_s.get_last_lr()[0]))
 
-            for name, param in self.model.named_parameters():
-                self.writer.add_histogram(f"{name}", param, 0)
+            # for name, param in self.model.named_parameters():
+            #     self.writer.add_histogram(f"{name}", param, 0)
 
             # Save checkpoint
             if epoch % self.save_period == 0 and self.args.local_rank <= 0:

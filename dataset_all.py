@@ -6,6 +6,10 @@ import random
 from random import randrange
 from torchvision.transforms import ToTensor
 import torchvision.transforms as transforms
+from torch.utils.data import Dataset
+from torchvision import transforms
+from PIL import Image
+import os
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
     '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP',
@@ -76,9 +80,9 @@ class TrainLabeled(data.Dataset):
         B = Image.open(self.B_paths[index]).convert("RGB")
         C = Image.open(self.C_paths[index]).convert("RGB")
         # resize
-        resized_a = A.resize((280, 280), Image.ANTIALIAS)
-        resized_b = B.resize((280, 280), Image.ANTIALIAS)
-        resized_c = C.resize((280, 280), Image.ANTIALIAS)
+        resized_a = A.resize((280, 280), Image.BICUBIC)
+        resized_b = B.resize((280, 280), Image.BICUBIC)
+        resized_c = C.resize((280, 280), Image.BICUBIC)
         # crop the training image into fineSize
         w, h = resized_a.size
         x, y = randrange(w - self.fineSize + 1), randrange(h - self.fineSize + 1)
@@ -124,8 +128,8 @@ class TrainUnlabeled(data.Dataset):
         A = Image.open(self.A_paths[index]).convert("RGB")
         C = Image.open(self.C_paths[index]).convert("RGB")
         candidate = Image.open(self.D_paths[index]).convert('RGB')
-        A = A.resize((self.fineSize, self.fineSize), Image.ANTIALIAS)
-        C = C.resize((self.fineSize, self.fineSize), Image.ANTIALIAS)
+        A = A.resize((self.fineSize, self.fineSize), Image.BICUBIC)
+        C = C.resize((self.fineSize, self.fineSize), Image.BICUBIC)
         # strong augmentation
         strong_data = data_aug(A)
         tensor_w = self.transform(A)
@@ -164,9 +168,9 @@ class ValLabeled(data.Dataset):
         A = Image.open(self.A_paths[index]).convert("RGB")
         B = Image.open(self.B_paths[index]).convert("RGB")
         C = Image.open(self.C_paths[index]).convert("RGB")
-        resized_a = A.resize((self.fineSize, self.fineSize), Image.ANTIALIAS)
-        resized_b = B.resize((self.fineSize, self.fineSize), Image.ANTIALIAS)
-        resized_c = C.resize((self.fineSize, self.fineSize), Image.ANTIALIAS)
+        resized_a = A.resize((self.fineSize, self.fineSize), Image.BICUBIC)
+        resized_b = B.resize((self.fineSize, self.fineSize), Image.BICUBIC)
+        resized_c = C.resize((self.fineSize, self.fineSize), Image.BICUBIC)
         # transform to (0, 1)
         tensor_a = self.transform(resized_a)
         tensor_b = self.transform(resized_b)
@@ -178,30 +182,51 @@ class ValLabeled(data.Dataset):
         return len(self.A_paths)
 
 
-class TestData(data.Dataset):
+from torchvision import transforms
+
+def make_dataset(dir):
+    images = []
+    assert os.path.isdir(dir), '%s is not a valid directory' % dir
+
+    for root, _, fnames in sorted(os.walk(dir)):
+        for fname in fnames:
+            if fname.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff')):
+                path = os.path.join(root, fname)
+                images.append(path)
+    return images
+
+
+class TestData(Dataset):
     def __init__(self, dataroot):
-        super().__init__()
         self.root = dataroot
+        self.dir_A = os.path.join(dataroot, "input")
+        self.dir_LA = os.path.join(dataroot, "LA")
 
-        self.dir_A = os.path.join(self.root + '/input')
-        self.dir_C = os.path.join(self.root + '/LA')
-
-        # image path
         self.A_paths = sorted(make_dataset(self.dir_A))
-        self.C_paths = sorted(make_dataset(self.dir_C))
+        self.LA_paths = sorted(make_dataset(self.dir_LA))
 
-        # transform
-        self.transform = ToTensor()  # [0,1]
+        assert len(self.A_paths) == len(self.LA_paths), \
+            f"Mismatch: {len(self.A_paths)} input images vs {len(self.LA_paths)} LA images"
+
+        self.to_tensor = transforms.ToTensor()
+        self.test_size = 256   # ← same as training crop size
 
     def __getitem__(self, index):
-        # A, B is the image pair, hazy, gt respectively
-        A = Image.open(self.A_paths[index]).convert("RGB")
-        C = Image.open(self.C_paths[index]).convert("RGB")
-        # transform to (0, 1)
-        tensor_a = self.transform(A)
-        tensor_c = self.transform(C)
+        A_path = self.A_paths[index]
+        LA_path = self.LA_paths[index]
 
-        return tensor_a, tensor_c
+        A = Image.open(A_path).convert("RGB")
+        LA = Image.open(LA_path).convert("RGB")   # 3 channels, matches model
+
+        # ---- resize to match training resolution ----
+        A = A.resize((self.test_size, self.test_size), Image.BICUBIC)
+        LA = LA.resize((self.test_size, self.test_size), Image.BICUBIC)
+        # ---------------------------------------------
+
+        A = self.to_tensor(A)
+        LA = self.to_tensor(LA)
+
+        return A, LA
 
     def __len__(self):
         return len(self.A_paths)
