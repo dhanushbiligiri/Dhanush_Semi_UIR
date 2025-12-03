@@ -6,7 +6,7 @@ implemented using PyTorch with a working teacher–student framework, reliable b
 supervised + unsupervised losses, and full NR-IQA evaluation.
 
 ---
-
+```bash
 ## 1. Project Structure
 
 Dhanush_Semi_UIR/
@@ -30,7 +30,7 @@ Dhanush_Semi_UIR/
 ├── train.py
 ├── trainer.py
 └── utils.py
-
+```
 
 ---
 
