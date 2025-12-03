@@ -50,7 +50,7 @@ pip install -r requirements.txt
 # scikit-image
 # tqdm, numpy, pillow
 ```
-
+```bash
 ## 3. Data Preparation
 
 Required folder structure:
@@ -71,10 +71,11 @@ data/
 └── test/
     ├── input/
     └── LA/
+```
 
 ### Step 1 — Split paired data (train + val)
 python prepare_labeled_val.py
-# or
+### or
 python splitpairs.py
 
 ### Step 2 — Generate illumination maps (LA)
@@ -89,149 +90,126 @@ Creates zero-image placeholders in unlabeled/candidate/.
 ## 4. Training
 
 Start training:
-
+```bash
 python train.py --data_dir ./data
-
+```
 
 This trains:
-
-Student model (AIM-Net)
-
-Teacher model (EMA updates)
-
-Structure + perceptual + gradient supervised losses
-
-Contrastive + L1 unsupervised losses
-
-Reliable bank updated using MUSIQ quality scores
-
-Checkpoints saved under:
-
-model/ckpt/model_e{epoch}.pth
+- Student model (AIM-Net)
+- Teacher model (EMA updates)
+- Structure + perceptual + gradient supervised losses
+- Contrastive + L1 unsupervised losses
+- Reliable bank updated using MUSIQ quality scores
+- Checkpoints saved under:
+    - model/ckpt/model_e{epoch}.pth
 
 ## 5. Inference (Testing)
 
 Prepare your test images at:
-
+```bash
 data/test/input/
-
+```
 
 Generate illumination maps:
-
+```bash
 python estimate_illumination.py
-
+```
 
 Run inference:
-
+```bash
 python test.py
-
+```
 
 Outputs saved to:
-
+```bash
 result/test/
-
+```
 ## 6. Evaluation (NR-IQA: MUSIQ, NIQE, BRISQUE)
 Full NR-IQA evaluation
+```bash
 python eval_test_nr_iqa.py
-
+```
 
 Outputs CSV:
-
+```bash
 test_nr_iqa_scores.csv
-
+```
 
 Metrics:
+- MUSIQ — higher is better
+- NIQE — lower is better
+- BRISQUE — lower is better
+- MUSIQ-only evaluation
 
-MUSIQ — higher is better
-
-NIQE — lower is better
-
-BRISQUE — lower is better
-
-MUSIQ-only evaluation
+```bash
 python eval_test_musiq.py
-
-
-Creates test_musiq_scores.csv.
-
+# Creates test_musiq_scores.csv.
+```
 ## 7. Plotting Training & Evaluation Metrics
 Training curves (loss, PSNR, SSIM, LR)
+```bash
 python logs_parse.py
 python plot_metrics.py
-
+```
 
 Saved in:
-
+```bash
 metric_figs/
-
+```
 NR-IQA comparison plots
+```bash
 python plot_test_nr_iqa.py
-
+```
 
 Saved in:
-
+```bash
 plots_nr_iqa/
 Eval_plots/
-
+```
 ## 8. Model Overview
 
 This reproduction implements the full Semi-UIR framework, including:
-
-AIM-Net backbone
-
-Illumination-Guided Modulation (IGM)
-
-Deformable Convolution (DCN)
-
-Non-local Sparse Attention
-
-Atrous multi-scale feature blocks
-
-Gradient-aware enhancement branch
-
-Attention Feature Fusion (AFF)
-
-EMA teacher network
-
-Reliable bank based on MUSIQ filtering
-
-Supervised + unsupervised joint optimization
+- AIM-Net backbone
+- Illumination-Guided Modulation (IGM)
+- Deformable Convolution (DCN)
+- Non-local Sparse Attention
+- Atrous multi-scale feature blocks
+- Gradient-aware enhancement branch
+- Attention Feature Fusion (AFF)
+- EMA teacher network
+- Reliable bank based on MUSIQ filtering
+- Supervised + unsupervised joint optimization
 
 ## 9. Reliable Bank Mechanism
 
-For each unlabeled image:
+### For each unlabeled image:
 
-teacher_output = EMA_teacher(x)
-student_output = student(x)
-bank_image = stored best pseudo-label
+    teacher_output = EMA_teacher(x)
+    
+    student_output = student(x)
+    
+    bank_image = stored best pseudo-label
 
 If MUSIQ(teacher_output) > MUSIQ(student_output)
+
     and MUSIQ(teacher_output) > MUSIQ(bank_image):
+    
         bank_image ← teacher_output
 
 
 This prevents confirmation bias by ensuring only high-quality pseudo-labels are stored.
 
 ## 10. Loss Functions
-Supervised Loss (on labeled pairs)
-
-Structure loss (MyLoss)
-
-Perceptual loss (VGG16 features)
-
-Gradient loss
-
-Unsupervised Loss (on unlabeled images)
-
-L1 loss between student output and bank pseudo-label
-
-Contrastive consistency loss
-
-Consistency ramp-up during early epochs
-
-Total loss:
-
-L_total = L_supervised + w(t) * L_unsupervised
+- Supervised Loss (on labeled pairs)
+- Structure loss (MyLoss)
+- Perceptual loss (VGG16 features)
+- Gradient loss
+- Unsupervised Loss (on unlabeled images)
+- L1 loss between student output and bank pseudo-label
+- Contrastive consistency loss
+- Consistency ramp-up during early epochs
+- Total loss:
+    - L_total = L_supervised + w(t) * L_unsupervised
 
 ## 11. Citation of original work
 @inproceedings{huang2023contrastive,
@@ -241,21 +219,3 @@ L_total = L_supervised + w(t) * L_unsupervised
   pages={18145--18155},
   year={2023}
 }
-
-## 12. Acknowledgements
-
-This reproduction references components from:
-
-Semi-UIR (original code)
-
-Non-local sparse attention
-
-MMCV deformable convolution
-
-VGG perceptual loss
-
-pyiqa NR-IQA metrics
-
-MIRNet / AFF
-
-UWCNN, EUVP, UIEB, RUIE, SeaThru datasets
