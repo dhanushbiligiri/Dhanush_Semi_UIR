@@ -1,85 +1,261 @@
-# Contrastive Semi-supervised Learning for Underwater Image Restoration via Reliable Bank (CVPR 2023)
-Shirui Huang*, Keyan Wang*+, Huan Liu, Jun Chen, Yunsong Li
+# Semi-Supervised Underwater Image Restoration (Semi-UIR) — Reproduction Project
 
-*Equal Contributions
-+Corresponding Author
+This repository contains a full reproduction of the CVPR 2023 method  
+**“Contrastive Semi-Supervised Learning for Underwater Image Restoration via Reliable Bank (Semi-UIR)”**,  
+implemented using PyTorch with a working teacher–student framework, reliable bank, illumination maps,  
+supervised + unsupervised losses, and full NR-IQA evaluation.
 
-Xidian University, McMaster University
+---
 
-## Introduction
-This is the official repository for our recent paper, "Contrastive Semi-supervised Learning for Underwater Image Restoration via Reliable Bank [link](https://arxiv.org/pdf/2303.09101.pdf)", where more implementation details are presented.
+## 1. Project Structure
 
-## Abstract
-Despite the remarkable achievement of recent underwater image restoration techniques, the lack of labeled data has become a major hurdle for further progress. In this work, we propose a mean-teacher based **Semi**-supervised **U**nderwater **I**mage **R**estoration (**Semi-UIR**) framework to incorporate the unlabeled data into network training. However, the naive mean-teacher method suffers from two main problems: (1) The consistency loss used in training might become ineffective when the teacher's prediction is wrong. (2) Using L1 distance may cause the network to overfit wrong labels, resulting in confirmation bias. To address the above problems, we first introduce a reliable bank to store the ``best-ever" outputs as pseudo ground truth. To assess the quality of outputs, we conduct an empirical analysis based on the monotonicity property to select the most trustworthy NR-IQA method. Besides, in view of the confirmation bias problem, we incorporate contrastive regularization to prevent the overfitting on wrong labels. Experimental results on both full-reference and non-reference underwater benchmarks demonstrate that our algorithm has obvious improvement over SOTA methods quantitatively and qualitatively.
+Dhanush_Semi_UIR/
+├── attention.py
+├── create_candidate.py
+├── dataset_all.py
+├── deform_conv.py
+├── estimate_illumination.py
+├── eval_test_musiq.py
+├── eval_test_nr_iqa.py
+├── logs.txt
+├── logs_parse.py
+├── loss/
+├── metric_figs/
+├── model.py
+├── plot_metrics.py
+├── plot_test_nr_iqa.py
+├── prepare_labeled_val.py
+├── splitpairs.py
+├── test.py
+├── train.py
+├── trainer.py
+└── utils.py
 
-<img src='overview.png'>
 
-<p align="center">Figure 1. An overview of our approach.</p>
+---
 
-## Dependencies
+## 2. Environment Setup
 
-- Ubuntu==18.04
-- Pytorch==1.8.1
-- CUDA==11.1
+```bash
+conda create -n EE5522 python=3.8
+conda activate EE5522
+pip install -r requirements.txt
 
-Other dependencies are listed in `requirements.txt`
+## Major dependencies:
 
-## Data Preparation
-
-Run `data_split.py` to randomly split your paired datasets into training, validation and testing set.
-
-Run `estimate_illumination.py` to get illumination map of the corresponding image.
-
-Finally, the structure of  `data`  are aligned as follows:
-
+# PyTorch
+# torchvision
+# mmcv (for deformable convolution)
+# pyiqa (MUSIQ/NIQE/BRISQUE)
+# scikit-image
+# tqdm, numpy, pillow
 ```
-data
-├── labeled
-│   ├── input
-│   └── GT
-│   └── LA
-├── unlabeled
-│   ├── input
-│   └── LA
-│   └── candidate
-└── val
-    ├── input
-    └── GT
-    └── LA
-└── test
-    ├── benchmarkA
-        ├── input
-        └── LA
-```
 
-You can download the training set and test sets from benchmarks [UIEB](https://li-chongyi.github.io/proj_benchmark.html), [EUVP](https://irvlab.cs.umn.edu/resources/euvp-dataset), [UWCNN](https://li-chongyi.github.io/proj_underwater_image_synthesis.html), [Sea-thru](http://csms.haifa.ac.il/profiles/tTreibitz/datasets/sea_thru/index.html), [RUIE](https://github.com/dlut-dimt/Realworld-Underwater-Image-Enhancement-RUIE-Benchmark). 
+## 3. Data Preparation
 
-## Test
+Required folder structure:
 
-Put your test benchmark under `data/test` folder, run `estimate_illumination.py` to get its illumination map.
+data/
+├── labeled1/
+│   ├── input/
+│   ├── GT/
+│   └── LA/
+├── unlabeled/
+│   ├── input/
+│   ├── LA/
+│   └── candidate/
+├── val/
+│   ├── input/
+│   ├── GT/
+│   └── LA/
+└── test/
+    ├── input/
+    └── LA/
 
-Run `test.py` and you can find results from folder `result`.
+### Step 1 — Split paired data (train + val)
+python prepare_labeled_val.py
+# or
+python splitpairs.py
 
-## Train
+### Step 2 — Generate illumination maps (LA)
+python estimate_illumination.py
 
-To train the framework, run `create_candiate.py` to initialize reliable bank. Hyper-parameters can be modified in `trainer.py`.
+### Step 3 — Initialize the reliable bank (empty placeholders)
+python create_candidate.py
 
-Run `train.py` to start training.
 
-## Citation
-If you use the code in this repo for your work, please cite the following bib entries:
+Creates zero-image placeholders in unlabeled/candidate/.
 
-```latex
+## 4. Training
+
+Start training:
+
+python train.py --data_dir ./data
+
+
+This trains:
+
+Student model (AIM-Net)
+
+Teacher model (EMA updates)
+
+Structure + perceptual + gradient supervised losses
+
+Contrastive + L1 unsupervised losses
+
+Reliable bank updated using MUSIQ quality scores
+
+Checkpoints saved under:
+
+model/ckpt/model_e{epoch}.pth
+
+## 5. Inference (Testing)
+
+Prepare your test images at:
+
+data/test/input/
+
+
+Generate illumination maps:
+
+python estimate_illumination.py
+
+
+Run inference:
+
+python test.py
+
+
+Outputs saved to:
+
+result/test/
+
+## 6. Evaluation (NR-IQA: MUSIQ, NIQE, BRISQUE)
+Full NR-IQA evaluation
+python eval_test_nr_iqa.py
+
+
+Outputs CSV:
+
+test_nr_iqa_scores.csv
+
+
+Metrics:
+
+MUSIQ — higher is better
+
+NIQE — lower is better
+
+BRISQUE — lower is better
+
+MUSIQ-only evaluation
+python eval_test_musiq.py
+
+
+Creates test_musiq_scores.csv.
+
+## 7. Plotting Training & Evaluation Metrics
+Training curves (loss, PSNR, SSIM, LR)
+python logs_parse.py
+python plot_metrics.py
+
+
+Saved in:
+
+metric_figs/
+
+NR-IQA comparison plots
+python plot_test_nr_iqa.py
+
+
+Saved in:
+
+plots_nr_iqa/
+Eval_plots/
+
+## 8. Model Overview
+
+This reproduction implements the full Semi-UIR framework, including:
+
+AIM-Net backbone
+
+Illumination-Guided Modulation (IGM)
+
+Deformable Convolution (DCN)
+
+Non-local Sparse Attention
+
+Atrous multi-scale feature blocks
+
+Gradient-aware enhancement branch
+
+Attention Feature Fusion (AFF)
+
+EMA teacher network
+
+Reliable bank based on MUSIQ filtering
+
+Supervised + unsupervised joint optimization
+
+## 9. Reliable Bank Mechanism
+
+For each unlabeled image:
+
+teacher_output = EMA_teacher(x)
+student_output = student(x)
+bank_image = stored best pseudo-label
+
+If MUSIQ(teacher_output) > MUSIQ(student_output)
+    and MUSIQ(teacher_output) > MUSIQ(bank_image):
+        bank_image ← teacher_output
+
+
+This prevents confirmation bias by ensuring only high-quality pseudo-labels are stored.
+
+## 10. Loss Functions
+Supervised Loss (on labeled pairs)
+
+Structure loss (MyLoss)
+
+Perceptual loss (VGG16 features)
+
+Gradient loss
+
+Unsupervised Loss (on unlabeled images)
+
+L1 loss between student output and bank pseudo-label
+
+Contrastive consistency loss
+
+Consistency ramp-up during early epochs
+
+Total loss:
+
+L_total = L_supervised + w(t) * L_unsupervised
+
+## 11. Citation of original work
 @inproceedings{huang2023contrastive,
   title={Contrastive Semi-supervised Learning for Underwater Image Restoration via Reliable Bank},
   author={Huang, Shirui and Wang, Keyan and Liu, Huan and Chen, Jun and Li, Yunsong},
-  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
+  booktitle={CVPR},
   pages={18145--18155},
   year={2023}
 }
-```
 
-## Acknowledgement
-The training code architecture is based on the [PS-MT](https://github.com/yyliu01/PS-MT) and [DMT-Net](https://github.com/liuye123321/DMT-Net) and thanks for their work.
-We also thank for the following repositories: [IQA-Pytorch](https://github.com/chaofengc/IQA-PyTorch), [UWNR](https://github.com/ephemeral182/uwnr), [MIRNetv2](https://github.com/swz30/MIRNetv2/blob/main/basicsr/models/archs/mirnet_v2_arch.py), [2022-CVPR-AirNet](https://github.com/XLearning-SCU/2022-CVPR-AirNet/blob/main/net/DGRN.py), [SPSR](https://github.com/Maclory/SPSR), [Non-Local-Sparse-Attention](https://github.com/HarukiYqM/Non-Local-Sparse-Attention/blob/main/src/model/attention.py), [AFF](https://github.com/YimianDai/open-aff/blob/master/model/fusion.py), [AECR-Net](https://github.com/GlassyWu/AECR-Net/blob/main/models/CR.py), [UIEB](https://li-chongyi.github.io/proj_benchmark.html), [EUVP](https://irvlab.cs.umn.edu/resources/euvp-dataset), [UWCNN](https://li-chongyi.github.io/proj_underwater_image_synthesis.html), [Sea-thru](http://csms.haifa.ac.il/profiles/tTreibitz/datasets/sea_thru/index.html), [RUIE](https://github.com/dlut-dimt/Realworld-Underwater-Image-Enhancement-RUIE-Benchmark), [MMLE](https://github.com/Li-Chongyi/MMLE_code), [PWRNet](https://github.com/huofushuo/PRWNet), [Ucolor](https://github.com/Li-Chongyi/Ucolor), [CWR](https://github.com/JunlinHan/CWR), [FUnIE-GAN](https://github.com/xahidbuffon/FUnIE-GAN)
+## 12. Acknowledgements
 
+This reproduction references components from:
+
+Semi-UIR (original code)
+
+Non-local sparse attention
+
+MMCV deformable convolution
+
+VGG perceptual loss
+
+pyiqa NR-IQA metrics
+
+MIRNet / AFF
+
+UWCNN, EUVP, UIEB, RUIE, SeaThru datasets
