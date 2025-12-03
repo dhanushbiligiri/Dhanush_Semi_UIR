@@ -74,16 +74,22 @@ data/
 ```
 
 ### Step 1 — Split paired data (train + val)
+
+```bash
 python prepare_labeled_val.py
+```
 ### or
+```bash
 python splitpairs.py
-
+```
 ### Step 2 — Generate illumination maps (LA)
+```bash
 python estimate_illumination.py
-
+```
 ### Step 3 — Initialize the reliable bank (empty placeholders)
+```bash
 python create_candidate.py
-
+```
 
 Creates zero-image placeholders in unlabeled/candidate/.
 
